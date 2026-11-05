@@ -13,7 +13,7 @@ import os
 import sys
 
 #All the options that can be managed via the CLI as arguments.
-# The layout is: printed_banner: argument_flag, matching_field(view colony.py), help_text. 
+# The layout is: printed_banner: argument_flag, matching_field(view_colony.py), help_text. 
 OPTIONS = [
     ("Seeds and colony", [
         ("streamlines", "max_seeds", "one streamline is traced from each seed"),
@@ -42,3 +42,20 @@ OPTIONS = [
         ("tau-min", "tau_min", "pheromone never drops below value (maximum 1)"),
     ]),
 ]
+
+def format_values(vals):
+    if isinstance(vals, int):
+        return f"{vals:,}"      #Formats integers, e.g: 1000000 turns into 1,000,000 
+    else:
+        return f"{vals:g}"      #Formats floats by removing trailing zeros. E.g: 0.1200000 turns into 0.12
+
+#Basic code to build a command line interface. Turns the OPTIONS dictionary into genuine flags via argparse.
+#I designed the arguments system this way to avoid a massive wall of repetitive code, doing it this way condenses everything into a for loop.
+p = argparse.ArgumentParser(description="ACO fiber tracking on ACO-ready scan.")
+p.add_argument("scan", help="The .nii.gz file which is ready to be processed")  #First mandatory positional argument which the path to the scan itself
+
+for group, options in OPTIONS:
+    g = p.add_argument(group)   #Adds each group name to argparse for display purposes (seeds & colony, how ants move...etc)
+    for flag, name, text in options:
+        print(f"flag = {flag}, name = {name}, text = {text}")
+        continue
