@@ -1,9 +1,13 @@
+#TODO Finish script. Finish CLI presentation. finish where processing will run (cpu/gpu), actually run processing.
+
 '''
 3D MRI Diffuse Tensor Imaging tractography using Ant Colony optimisation.
 Designed, written, tested & validated by I, Hugo Piper.
 
 THIS IS THE PRIMARY SCRIPT FOR RUNNING THE ANT COLONY OPTIMISATION SOFTWARE.
-There is no real logic processed here; only argument parsing, firing the shots to other scripts, and piping data.
+There is no real logic processed here; only argument parsing (CLI frontend), firing the shots to other scripts, and piping data.
+- View 'tracker.py' for a high level view of the ACO running.
+- View 'aco_ready.py' for the actual ACO logic.
 THIS IS A CLI BASED APPLICATION. USAGE BELOW.
 '''
 
@@ -57,5 +61,5 @@ p.add_argument("scan", help="The .nii.gz file which is ready to be processed")  
 for group, options in OPTIONS:
     g = p.add_argument(group)   #Adds each group name to argparse for display purposes (seeds & colony, how ants move...etc)
     for flag, name, text in options:
-        print(f"flag = {flag}, name = {name}, text = {text}")
+        print(f"flag = {flag}\n, name = {name}\n, text = {text}\n\n")
         continue
