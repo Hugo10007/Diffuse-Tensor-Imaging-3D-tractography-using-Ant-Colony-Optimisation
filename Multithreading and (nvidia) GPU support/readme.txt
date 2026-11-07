@@ -1,0 +1,2 @@
+This section contains all the logic to allow for multithreading support, and if available, GPU support (via CuPy).
+I decided to keep the logic seperate as to not clutter the other scripts which do the primary processing of data.
