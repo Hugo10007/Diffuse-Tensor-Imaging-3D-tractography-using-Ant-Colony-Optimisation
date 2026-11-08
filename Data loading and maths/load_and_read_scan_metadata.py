@@ -10,10 +10,11 @@ a brain mask from a T1 scan into the scans metadata as to keep purity of ACO-rel
 import os                       #For loading scans from the users pc
 import nibabel                  #For loading the scans images
 from dataclasses import field   #
+import numpy as np              #For 
 
 #Primary variables related to loading and processing scans
 FORMAT_NAME = "ACO-ready"   #A name I put into the headers of the preprocessed scans so the program reconises valid scans.
-FORMAT_VERSION = 1  #The version determines if a scan comes with or without tissue maps (V2 adds them, files without tissue maps stay V1). This is a compatibility feature 
+FORMAT_VERSION = 1  #The version determines if a scan comes with or without T1 scan tissue maps (V2 adds them, files without T1 scan data stay V1). This is a compatibility feature 
 INTENT_NAME = f"{FORMAT_NAME} v{FORMAT_VERSION}" #16 chars in a nifti file that can be added and will be displayed in the 3D viewer.
 VOLUMES = ["fa", "tracking_mask", "brain_mask", "b0", "Dxx", "Dxy", "Dyy", "Dxz", "Dyz", "Dzz"] #The layout IN ORDER of the different data in the NIFTI (MRI) file. 
 TISSUE_VOLUMES = ["wm", "gm", "csf"] #Incase a t1 file is added for accuracy, determines the quantity of WhiteMatter, GrayMatter, CerebralSpinalFluid
@@ -25,6 +26,21 @@ DESCRIP_V2 = "ACO-ready v2: FA,track,brain,b0,Dxx,Dxy,Dyy,Dxz,Dyz,Dzz,WM,GM,CSF"
 _ECODE_COMMENT = 6 #NIFTI files allow comments to be added in the metadata under code 6, I however don't think I'll encorprorate this in the final version.
 
 class loadAndReadScanMetadata:
+
+    #All the data the ACO script needs is held here. Extracted from scan metadata.
+    fa: np.ndarray                  #Fractional Anistrophy (how freely water flows): (X,Y,Z) in float32 format.
+    tracking_mask: np.ndarray       #Where the ants can walk within the brain: (X,Y,Z) boolean
+    brain_mask: np.ndarray          #Where the brain is and isn't: (X,Y,Z) boolean
+    b0: np.ndarray                  #b0 scan is a default scan with no diffusion weighting (basline scan): (X,Y,Z) float32, 0 to 1
+    tensor_lt: np.ndarray           #Diffusion tensor at every voxel represented as a Lower Triangle (lt)
+                                    #It represents how freely water flows in each direction as a 3x3 matrix. (X,Y,Z,6) float32: Dxx, Dxy, Dxz, Dyx, Dyy, Dyz, Dzx, Dzy, dzz
+                                    #Eigenvector with largest eigenvalue is the direction water moves best. This is how we obtain FA and mean diffusivity.
+    affine: np.ndarray              #A 4x4 matrix that maps voxel indices (i,j,k) to world coordinates in mm (x, y, z). Scale[i], roatation[j], translation[k], and axis flips.
+    meta: dict = field(default_factory=dict) #Dictionary holding metadata
+    path: str = ""                  #Path of the scan the user entered.
+    zooms: tuple = None             #Voxel size (mm) from the scan header; if none in head, we get it from the affine.
+    tissue: np.ndarray = None       #Tissue data from an optional T1 scan (X,Y,Z,3) float32 WM, GM, CSF from a T1. None = not available
+    
 
     
     def load(path_user_entered: str):
