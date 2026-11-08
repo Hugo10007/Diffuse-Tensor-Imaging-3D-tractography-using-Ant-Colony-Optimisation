@@ -10,7 +10,8 @@ a brain mask from a T1 scan into the scans metadata as to keep purity of ACO-rel
 import os                       #For loading scans from the users pc
 import nibabel                  #For loading the scans images
 from dataclasses import field   #
-import numpy as np              #For 
+import numpy as np              #For arrays and matrices
+import json                     #For reading scan metadata
 
 #Primary variables related to loading and processing scans
 FORMAT_NAME = "ACO-ready"   #A name I put into the headers of the preprocessed scans so the program reconises valid scans.
@@ -24,6 +25,7 @@ TISSUE_SLICE = slice(10, 13)#Tells load() where the tissue slices are from the T
 DESCRIP = "ACO-ready v1: FA,track mask,brain mask,b0,Dxx,Dxy,Dyy,Dxz,Dyz,Dzz"   #Layout of nifti (MRI) file without T1 metadata
 DESCRIP_V2 = "ACO-ready v2: FA,track,brain,b0,Dxx,Dxy,Dyy,Dxz,Dyz,Dzz,WM,GM,CSF"#Layout of a nifti (MRI) file with T1 metadata
 _ECODE_COMMENT = 6 #NIFTI files allow comments to be added in the metadata under code 6, I however don't think I'll encorprorate this in the final version.
+
 
 class loadAndReadScanMetadata:
 
@@ -42,18 +44,62 @@ class loadAndReadScanMetadata:
     tissue: np.ndarray = None       #Tissue data from an optional T1 scan (X,Y,Z,3) float32 WM, GM, CSF from a T1. None = not available
     
 
-    
-    def load(path_user_entered: str):
-        "Reads the file from the path that the user put into the CLI. Invalid file/data error handling happens here"
+    #helper properties that pipe the correct information into functions that need info. Based off the variables above.
+    @property
+    def shape(self):
+        return self.fa.shape
 
-        if not os.path.exists(path_user_entered):
-            raise FileNotFoundError(f"\nFile not found at path {path_user_entered}.\nPlease enter a valid path and try again.")
-        print("valid path.")
-        try:
-            #Where the image is actually loaded from the users PC
-            img = nibabel.load(path_user_entered)
-        except Exception as exc:
-            raise ValueError(f"{os.path.basename(path_user_entered)} is not a readable or valid NIFTI file.\nError code:\n{exc}")
+    @property
+    def has_tissue(self):
+        return self.has_tissue(self) is not None
+
+    @property
+    def format_version(self):
+        return 2 if self.has_tissue else 1
+
+    @property
+    def voxel_size(self):
+        if self.zooms is not None:
+            return np.asarray(self.zooms, dtype=np.float64)
+        else:
+            return np.sqrt((self.affine[:3, :3] **2).sum(axis=0))
+
+    def seed_voxels(self, seed_fa_threshold):
+        #Sanity check to ensure fa threshold isn't too high which would result in 0 seeds. If seeds = 0, complain to user
+        return int(np.count_nonzero(self.tracking_mask & (self.fa >= seed_fa_threshold)))
+
+    def describe(self):
+        #Uses the above helper properties to display information about the scan to the user.
+        vs = self.voxel_size
+        return (f"{self.shape[0]} x {self.shape[1]} x {self.shape[2]} voxels, "
+                f"{vs[0]:.2f} x {vs[1]:.2f} x {vs[2]:.2f} mm; "
+                f"brain {int(self.brain_mask.sum()):,} voxels, "
+                f"tracking mask {int(self.tracking_mask.sum()):,} voxels")
+
+def read_meta(img) -> dict:
+    #Reads the metadata from the NIFTI (MRI) file. Metadata is in a json format.
+    #Some functions appear to not exist, this is due to nibabel creating them as an object when the program runs.
+    for ext in img.header.extensions:
+        if ext.get_code() == _ECODE_COMMENT:
+            try:
+                data = json.loads(ext.get_content().decode("utf-8", errors="replace"))
+                if isinstance(data, dict) and data.get("format") == FORMAT_NAME:
+                                    return data
+            except (ValueError, AttributeError):
+                continue
+    return {}
+        
+def load(path_user_entered: str):
+    "Reads the file from the path that the user put into the CLI. Invalid file/data error handling happens here"
+
+    if not os.path.exists(path_user_entered):
+        raise FileNotFoundError(f"\nFile not found at path {path_user_entered}.\nPlease enter a valid path and try again.")
+    print("valid path.")
+    try:
+        #Where the image is actually loaded from the users PC
+        img = nibabel.load(path_user_entered)
+    except Exception as exc:
+        raise ValueError(f"{os.path.basename(path_user_entered)} is not a readable or valid NIFTI file.\nError code:\n{exc}")
 
 
 userpath = str(input("Please enter a valid path:\n>>>"))
