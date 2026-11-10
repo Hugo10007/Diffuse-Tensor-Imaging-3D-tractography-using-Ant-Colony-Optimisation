@@ -9,7 +9,7 @@ a brain mask from a T1 scan into the scans metadata as to keep purity of ACO-rel
 
 import os                       #For loading scans from the users pc
 import nibabel                  #For loading the scans images
-from dataclasses import field   #
+from dataclasses import field, dataclass   #
 import numpy as np              #For arrays and matrices
 import json                     #For reading scan metadata
 
@@ -90,6 +90,7 @@ def read_meta(img) -> dict:
     return {}
         
 def load(path_user_entered: str):
+    #This algorithm loads the metadata from the scans to prepare for processing
     "Reads the file from the path that the user put into the CLI. Invalid file/data error handling happens here"
 
     if not os.path.exists(path_user_entered):
@@ -100,8 +101,45 @@ def load(path_user_entered: str):
         img = nibabel.load(path_user_entered)
     except Exception as exc:
         raise ValueError(f"{os.path.basename(path_user_entered)} is not a readable or valid NIFTI file.\nError code:\n{exc}")
+    
+    #Actual image loading
+    shape = img.shape
+    if len(shape) != 4 or shape[3] not in (len(VOLUMES), len(VOLUMES_V2)):
+        if len(shape) == 4 and shape[3] > 10:
+            print("The scan has not yet been preprocessed to be ACO ready. Ask Hugo Piper to preprocess your scan.")
+        raise ValueError("Scans file has invalid headers. Please verify the scan has been preprocessed by Hugo Piper.")
 
+    #THIS SECTION ACTUALLY READS AND LOADS THE METADATA FOR PROCESSING
+    metadata = read_meta(img)
+    expected = VOLUMES_V2 if shape[3] == len(VOLUMES_V2) else VOLUMES
+    order = metadata.get("volumes", expected)
+    if list(order) != expected: #Determines if the scans header data is in the correct order.
+         raise ValueError("Unknown header ofer of scan. Please use a valid preprocessed scan. Ask Hugo Piper for help.")
 
-userpath = str(input("Please enter a valid path:\n>>>"))
-loadAndReadScanMetadata.load(userpath)
+    data = np.asarray(img.dataobj, dtype=np.float32)
+    data = np.nan_to_num(data) #Removes null or infinitely high values
+
+    ready = loadAndReadScanMetadata (
+        #Building the scans metadata as an object in preperation of being processed by the ACO script.
+        #We use the python elipsis feature '...' which is the equivalent of ':, :, :, 0' for getting the fourth value of an XYZ0 4D shape.
+        fa=np.clip(data[..., 0], 0.0, 1.0),
+        tracking_mask=data[..., 1] > 0.5,
+        brain_mask=data[..., 2] > 0.5,
+        b0=data[..., 3],
+        tensor_lt=np.ascontiguousarray(data[..., TENSOR_SLICE]),
+        affine=img.affine.copy(),
+        meta=metadata,
+        path=os.path.abspath(path_user_entered),
+        zooms=_zooms(metadata, img),
+        tissue=(np.ascontiguousarray(np.clip(data[..., TISSUE_SLICE], 0.0, 1.0))
+                if shape[3] == len(VOLUMES_V2) else None),
+    )
+
+def _zooms(meta, img):
+    #Checks the scans header whether it has a saved voxel size or not.
+    header_zooms = np.array(img.header.get_zooms()[:3], dtype=np.float64)
+    voxel_size_mm = meta.get("voxel_size_mm")
+    if voxel_size_mm is not None and len(voxel_size_mm) == 3 and np.allclose(voxel_size_mm, header_zooms, rtol=1e-3):
+        return tuple(float(x) for x in voxel_size_mm)
+    return tuple(float(x) for x in header_zooms)
 
