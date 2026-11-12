@@ -2,7 +2,7 @@
 #The table below is an exact clone of dipy's 'repulsion100' sphere (open-source python module).
 #I copied it as I don't want users to have to install unneccesary python modules for something so lightweight.
 #'Dipys Sphere' is simply 100 precomputed vertices around a sphere that allow ants to choose a set direction to go in.
-#Link to dipy's sphere website: https://docs.dipy.org/stable/reference/dipy.direction.html#dipy.direction.pmf.Sphere
+#Link to dipy's sphere website: https://docs.dipy.org/stable/reference/dipy.direction.html#dipy.direction.pmf.Sphere https://docs.dipy.org/stable/examples_built/preprocessing/gradients_spheres.html
 #The next step after this table will be the ant colony optimisation algorithm itself.
 
 import numpy as np
