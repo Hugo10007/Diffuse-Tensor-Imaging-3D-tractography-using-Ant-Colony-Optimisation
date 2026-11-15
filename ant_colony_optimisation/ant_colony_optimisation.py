@@ -27,3 +27,6 @@ import math #Used for math written in C as its faster and quite frankly easier t
 import sys
 from dataclasses import dataclass
 import numpy as np
+
+from .ant_colony_optimisation import REPULSION100
+from data_loading_and_math.measure_water_diffusion_at_voxel import local_tensor
