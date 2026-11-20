@@ -97,5 +97,5 @@ def run_tracking(ready, cfg: RunConfig = None, log=None, progress=False):
     stats["n_streamlines_final"] = len(streamlines)
     if len(lengths):
         stats["length_mm_p10_p50_p90"] = [round(float(v), 1) for v in np.percentile(lengths, [10, 50, 90])]
-        stats["total_seconds"] = round(time.time() - t_start, 1)
+    stats["total_seconds"] = round(time.time() - t_start, 1)
     return {"streamlines_world": streamlines, "bundle_labels": labels, "stats": stats, "history": history}
