@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import numpy as np
 
-MAX_POINTS = 4_000_000          # draw a random subset of very large tractograms
+MAX_POINTS = 10_000_000_000          # draw a random subset of very large tractograms
 
 
 def show(streamlines, title="ACO Tracker"):
-    """Open the window (blocks until it is closed)."""
+    #Opens the 3D window and blocks it until it is closed.
     import pyvista as pv
 
     # every other point is plenty for drawing (the tracking steps are half a voxel)
@@ -40,9 +40,10 @@ def show(streamlines, title="ACO Tracker"):
     plotter.set_background("black")
     plotter.add_mesh(mesh, scalars="RGB", rgb=True, line_width=2, render_lines_as_tubes=True)
     plotter.add_axes(color="white")
+    plotter.enable_custom_trackball_style(left="rotate", right="pan", middle="pan", shift_left="pan", control_left="spin")
+    plotter.enable_parallel_projection()          # no perspective: panning slides the model without it appearing to turn
     plotter.view_vector((-1, 1, 0.5), viewup=(0, 0, 1))
     plotter.camera.zoom(1.3)
     shown = f"{len(lines):,} of {len(streamlines):,}" if len(lines) < len(streamlines) else f"{len(lines):,}"
-    plotter.add_text(f"{shown} streamlines   red = left-right, green = front-back, blue = up-down",
-                     font_size=9, color="white")
+    plotter.add_text(f"{shown} streamlines   red = left-right, green = front-back, blue = up-down", font_size=9, color="white")
     plotter.show()
