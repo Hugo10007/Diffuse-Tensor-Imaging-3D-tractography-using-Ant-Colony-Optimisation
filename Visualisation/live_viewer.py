@@ -19,7 +19,8 @@ def show(streamlines, title="ACO Tracker"):
     lines = [s[::2] if len(s) > 4 else s for s in (np.asarray(s, np.float32) for s in streamlines)]
     order = np.random.default_rng(0).permutation(len(lines))
     sizes = np.array([len(lines[i]) for i in order])
-    lines = [lines[i] for i in order[np.cumsum(sizes) <= MAX_POINTS]] or lines[:1]
+    #lines = [lines[i] for i in order[np.cumsum(sizes) <= MAX_POINTS]] or lines[:1] #half resolution
+    lines = [np.asarray(s, np.float32) for s in streamlines] #full_resolution
     if not lines:
         print("Nothing to show: no streamlines.")
         return
