@@ -26,7 +26,7 @@ DESCRIP = "ACO-ready v1: FA,track mask,brain mask,b0,Dxx,Dxy,Dyy,Dxz,Dyz,Dzz"   
 DESCRIP_V2 = "ACO-ready v2: FA,track,brain,b0,Dxx,Dxy,Dyy,Dxz,Dyz,Dzz,WM,GM,CSF"#Layout of a nifti (MRI) file with T1 metadata
 _ECODE_COMMENT = 6 #NIFTI files allow comments to be added in the metadata under code 6, I however don't think I'll encorprorate this in the final version.
 
-
+@dataclass
 class loadAndReadScanMetadata:
 
     #All the data the ACO script needs is held here. Extracted from scan metadata.
@@ -51,7 +51,7 @@ class loadAndReadScanMetadata:
 
     @property
     def has_tissue(self):
-        return self.has_tissue(self) is not None
+        return self.tissue is not None
 
     @property
     def format_version(self):
@@ -134,6 +134,15 @@ def load(path_user_entered: str):
         tissue=(np.ascontiguousarray(np.clip(data[..., TISSUE_SLICE], 0.0, 1.0))
                 if shape[3] == len(VOLUMES_V2) else None),
     )
+
+    if not ready.tracking_mask.any():
+        raise ValueError(f"'{os.path.basename(path_user_entered)}' HAS AN EMPTY TRACKING MASK: nothing to track in. Ask Hugo Piper for fix.\n\n")
+    if not np.any(ready.tensor_lt):
+        raise ValueError(f"'{os.path.basename(path_user_entered)}' HAS AN ALL ZERO TENSOR FIELD. Ask Hugo Piper for fix.\n\n")
+    if not ready.brain_mask.any():
+        ready.brain_mask = ready.tracking_mask.copy()
+
+    return ready
 
 def _zooms(meta, img):
     #Checks the scans header whether it has a saved voxel size or not.

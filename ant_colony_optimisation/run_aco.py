@@ -20,13 +20,11 @@ import numpy as np
 
 from data_loading_and_math.t1_constrained_tracking import AnatomyConfig, active, constrain, end_filter
 from multithreading_and_nvidia_gpu_support.processing_device import make_executor
-from visualisation.streamline_tracing_and_filtering import apply_affine, filter_by_length, smooth, cluster_and_filter
+from visualisation.streamline_tracing_and_filtering import apply_affine, filter_by_length, smooth, cluster_and_filter, CleanupConfig
 from .ant_colony_optimisation import ACOConfig, World, run_aco, trail_stats
 
  
-# ==========================================================================
-# SETTINGS of a run (the colony's own settings are in colony.py)
-# ==========================================================================
+#SETTINGS of a run (the colonies own settings are not here)
 
 @dataclass
 class RunConfig:
@@ -35,6 +33,7 @@ class RunConfig:
     output_dir: str = None        # folder for tractography.trk (None = don't save)
     device: str = "auto"          # "auto" (the GPU if usable), "gpu" or "cpu"
     n_workers: int = None         # CPU processes (None = CPU cores - 1)
+    cleanup: CleanupConfig = field(default_factory=CleanupConfig) #The bundle filter
 
 
 def run_tracking(ready, cfg: RunConfig = None, log=None, progress=False):
@@ -98,3 +97,5 @@ def run_tracking(ready, cfg: RunConfig = None, log=None, progress=False):
     stats["n_streamlines_final"] = len(streamlines)
     if len(lengths):
         stats["length_mm_p10_p50_p90"] = [round(float(v), 1) for v in np.percentile(lengths, [10, 50, 90])]
+        stats["total_seconds"] = round(time.time() - t_start, 1)
+    return {"streamlines_world": streamlines, "bundle_labels": labels, "stats": stats, "history": history}

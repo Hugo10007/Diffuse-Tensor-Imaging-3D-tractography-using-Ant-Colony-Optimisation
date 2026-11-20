@@ -29,7 +29,7 @@ import sys
 from dataclasses import dataclass
 import numpy as np
 
-from .ant_colony_optimisation import REPULSION100
+from .ant_tracking_directions_table import REPULSION100
 from data_loading_and_math.measure_water_diffusion_at_voxel import (apparent_diffusivity, local_tensor, determine_processor, principal_direction_and_fa, tensor_times)
 
 @dataclass
@@ -45,7 +45,7 @@ class ACOConfig:
     #How the ants move
     step_size_vox: float = 0.5       # [--step] step length, in voxels
     max_turn_deg: float = 30.0       # [--max-turn] sharpest turn per step, in degrees
-    n_candidate_dirs: int = 8        # [--candidates] directions tried in the turning cone (+ fibre and deflected)
+    n_candidate_directions: int = 8        # [--candidates] directions tried in the turning cone (+ fibre and deflected)
     stop_fa_threshold: float = 0.2   # [--stop-fa] an ant stops where FA ahead is below this (not used with T1 maps)
     min_length_mm: float = 20.0      # [--min-length] shorter streamlines are dropped; ants under half this leave no pheromone
     max_length_mm: float = 250.0     # [--max-length] longest path (caps the number of steps)
@@ -58,8 +58,8 @@ class ACOConfig:
 
     #Pheromone and evaporation (Max-Min Ant System)
     evaporation_rate: float = 0.2    # [--evaporation] Share of the pheromone that evaporates each generation
-    pheremone_initial: float = 0.1   # [--pheremone-initial] Pheromone where no ant has laid any
-    pheremone_min: float = 0.02      # [--pheremone-min] pheromone never drops below this (the maximum is 1)
+    pheromone_initial: float = 0.1   # [--pheremone-initial] Pheromone where no ant has laid any
+    pheromone_min: float = 0.02      # [--pheremone-min] pheromone never drops below this (the maximum is 1)
 
     #Not actual CLI variables, static variables for smoothing streamlines
     smooth_streamlines: bool = True  #Moving-average smoothing of the final streamlines, not intense.
@@ -139,7 +139,7 @@ class World:
             self.step_vox = self.step_mm / self.voxel_size          # (3,) voxels per step along each axis
             self.max_steps = int(math.ceil(cfg.max_length_mm / self.step_mm))   # no ant walks further than max length
             self.cos_max = math.cos(math.radians(cfg.max_turn_deg))              # turn limit, as a cosine
-            self.templates = make_cone_templates(cfg.n_candidate_dirs, math.radians(cfg.max_turn_deg))   # the cone
+            self.templates = make_cone_templates(cfg.n_candidate_directions, math.radians(cfg.max_turn_deg))   # the cone
             self.sphere = REPULSION100.copy()                       # the 100 pheromone direction bins
             self.n_bins = self.sphere.shape[0]
             self.bin_lut = direction_lookup_table(self.sphere)
@@ -260,7 +260,7 @@ def candidate_directions(world: World, pos, heading):
     #Returns the possible candidate directions an ant can choose FOR EVERY STEP.
     #Takes the world, position of the ant, and heading of the ant to choose candiate directions within a 30deg cone.
     #Based on processed MRI metadata of tensor FA values.
-    processor = world.xp
+    processor = world.determine_processing_unit
     comps, _, principal, _ = local_tensor(world.T, pos)                  # the tensor where the ant stands
     forwards = processor.sign(processor.einsum("ij,ij->i", principal, heading))      # flip the fibre direction to point ahead
     forwards = processor.where(forwards == 0, 1.0, forwards).astype(world.dtype)
@@ -277,7 +277,7 @@ def score_candidate_moves(world: World, table: PheromoneTable, pos, heading, can
     #Scores every candidate move as pheromone^alpha × heuristic^beta × straightness^y.
     #sets a moves score to 0 if it turns too sharply, lands in low FA or leaves the brain mask.
 
-    cfg, processor = world.cfg, world.xp
+    cfg, processor = world.cfg, world.determine_processing_unit
     n, k = cand.shape[:2]
     target_flat = target.reshape(-1, 3)
     comps, evals, _, fa = local_tensor(world.T, target_flat) #The tensor where each move lands
@@ -316,7 +316,7 @@ def run_ants(world: World, table: PheromoneTable, start_pos, start_dir, rng=None
     #greedy: Always takes the best move (used for final tracing, disabled roulette logic)
     #quality: sum of fa * cos(turn). Calculates the quality of a path taken.
     #record_paths: Records the points (voxels) visited
-    cfg, processor, dt = world.cfg, world.xp, world.dtype
+    cfg, processor, dt = world.cfg, world.determine_processing_unit, world.dtype
     n = len(start_pos)
     position = processor.array(start_pos, dtype=dt)
     heading = processor.array(start_dir, dtype=dt)
@@ -479,7 +479,7 @@ def run_aco(world: World, fa: np.ndarray, executor, rng_seed: int = 42, on_gener
     log(f"  learning: {cfg.n_generations} generations x {n_train:,} training seeds x {cfg.n_ants_per_seed} ants")
 
     #1) LEARNING OF THE COLONY: every generation the exploring ants lay pheromones and the pheremone table is updated
-    table = PheromoneTable(world.n_bins, cfg.tau_initial, cfg.tau_min)
+    table = PheromoneTable(world.n_bins, cfg.pheromone_initial, cfg.pheromone_min)
     train_seeds = _chunks(seeds[:n_train], TRAIN_CHUNK_SEEDS)
     bar = tqdm(total=cfg.n_generations * len(train_seeds), desc="Learning", unit="chunk", disable=not progress,
                leave=False)

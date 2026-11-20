@@ -12,8 +12,9 @@ import nibabel as nib
 #SETTINGS OF THE FIBER FILTERING (not accessible via the CLI as of now.)
 @dataclass
 class CleanupConfig:
-    enabled: bool = True                 # group streamlines by shape; remove small, isolated groups (wrong turns)
-    min_cluster_size: int = 10           # smaller groups are removed
+    enabled: bool = True                 #Groups streamlines by shape; removes small, isolated groups which are usually wrong turns
+    cluster_threshold_mm: float = 12.0   #Mean point-to-point distance below which streamlines share a group
+    min_cluster_size: int = 10           #Smaller groups are removed
 
 
 
