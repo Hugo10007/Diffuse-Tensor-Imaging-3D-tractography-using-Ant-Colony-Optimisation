@@ -8,6 +8,8 @@ There is no real logic processed here; only argument parsing (CLI frontend), fir
 - View 'ant_colony_optimisation/run_aco' for a high level view of the ACO running.
 - View 'ant_colony_optimisation/ant_colony_optimisation.py' for the actual ACO logic.
 THIS IS A CLI BASED APPLICATION. USAGE BELOW.
+
+- By Hugo Piper, in sacrafice of his sleep schedule and parts of his social life.
 '''
 
 import argparse

@@ -484,7 +484,7 @@ def run_aco(world: World, fa: np.ndarray, executor, rng_seed: int = 42, on_gener
     bar = tqdm(total=cfg.n_generations * len(train_seeds), desc="Learning", unit="chunk", disable=not progress,
                leave=False)
     for g in range(cfg.n_generations):
-        jobs = [(s, rng_seed * 1_000_003 + g * 10_007 + i) for i, s in enumerate(train_seeds)]   # fixed random streams
+        jobs = [(s, rng_seed * 1_000_003 + g * 10_007 + i) for i, s in enumerate(train_seeds)]   #Fixed random streams
         results = executor.run("train", table, jobs, lambda i, r: bar.update(1))
         table.update(*merge_deposits(results), cfg.evaporation_rate)
         mean_path_mm = np.mean([r[2] for r in results]) * world.step_mm

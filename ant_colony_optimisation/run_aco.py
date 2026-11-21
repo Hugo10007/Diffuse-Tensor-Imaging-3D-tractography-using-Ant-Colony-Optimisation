@@ -36,15 +36,15 @@ class RunConfig:
     cleanup: CleanupConfig = field(default_factory=CleanupConfig) #The bundle filter
 
 
+#RUNS THE ACTUAL ANT COLONY OPTIMISATION SYSTEM.
+#Returns a dictionary with all the streamlines along with statistics.
+#Also updates the tqdm progress bar for each batch of processed ants (incase of GPU or parallel processing)
 def run_tracking(ready, cfg: RunConfig = None, log=None, progress=False):
-    """Track an ACO-ready scan. ``log`` prints what happens (e.g. ``print``);
-    ``progress`` shows progress bars. Returns a dict with the streamlines
-    (world mm), their bundle labels, statistics and per-generation history."""
     cfg = cfg or RunConfig()
     log = log or (lambda *_: None)
     t_start = time.time()
 
-    # --- where the ants may walk: white matter if the scan has T1 tissue maps
+    #Where the ants may walk. White matter if the scan has T1 tissue maps
     full, aco = ready, cfg.aco
     use_t1 = active(full, cfg.anatomy)
     if use_t1:
@@ -53,9 +53,9 @@ def run_tracking(ready, cfg: RunConfig = None, log=None, progress=False):
              "tracking_mask_voxels": int(ready.tracking_mask.sum()),
              "seed_voxels": ready.seed_voxels(aco.seed_fa_threshold)}
 
-    # --- the colony
-    world = World(ready.tensor_lt, ready.tracking_mask, ready.voxel_size, aco)
-    executor, stats["aco_device"] = make_executor(world, cfg.device, cfg.n_workers, log)
+    #Generates the colony and stats about the colony
+    world = World(ready.tensor_lt, ready.tracking_mask, ready.voxel_size, aco)  #Loads the ACO 'world' where the ants can walk and pipes it to the executor below.
+    executor, stats["aco_device"] = make_executor(world, cfg.device, cfg.n_workers, log) #Sends the data to be ran to an executor so multiple processes can be ran at once (view processing_device.py)
     history = []
 
     def on_generation(g, n, table, mean_path_mm):                # statistics after every generation
@@ -75,7 +75,7 @@ def run_tracking(ready, cfg: RunConfig = None, log=None, progress=False):
     stats["aco_seconds"] = round(time.time() - t0, 1)
     log(f"  traced {len(raw):,} streamlines (colony: {stats['aco_seconds']:.0f} s)")
 
-    # --- clean-up
+    #STREAMLINE FILTERING. Removes impossibly short streamlines (min_length_mm, max_length_mm)
     log("Cleaning up")
     kept, lengths = filter_by_length(raw, ready.voxel_size, aco.min_length_mm, aco.max_length_mm)
     log(f"  length {aco.min_length_mm:g}-{aco.max_length_mm:g} mm: kept {len(kept):,} of {len(raw):,}")
@@ -87,7 +87,7 @@ def run_tracking(ready, cfg: RunConfig = None, log=None, progress=False):
         stats["n_rejected_ends_not_in_grey_matter"] = len(kept) - len(idx)
         log(f"  T1 end filter: {len(idx):,} of {len(kept):,} reach grey matter (or the brain's edge) at both ends")
         kept, lengths = [kept[i] for i in idx], lengths[idx]
-    streamlines = [apply_affine(s, ready.affine).astype(np.float32) for s in kept]     # voxels -> world mm
+    streamlines = [apply_affine(s, ready.affine).astype(np.float32) for s in kept] #voxels to world mm
 
     labels = None
     if cfg.cleanup.enabled and streamlines:
