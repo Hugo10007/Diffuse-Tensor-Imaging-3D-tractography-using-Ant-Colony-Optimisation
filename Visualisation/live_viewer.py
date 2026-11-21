@@ -11,7 +11,7 @@ import numpy as np
 MAX_POINTS = 10_000_000_000          # draw a random subset of very large tractograms
 
 
-def show(streamlines, title="ACO Tracker"):
+def show(streamlines, title="Ant Colony Optimisation Tractography by Hugo Piper"):
     #Opens the 3D window and blocks it until it is closed.
     import pyvista as pv
 
@@ -31,7 +31,7 @@ def show(streamlines, title="ACO Tracker"):
     tangents = np.concatenate([np.gradient(s, axis=0) if len(s) > 1 else np.ones((1, 3)) for s in lines])
     rgb = np.abs(tangents) / (np.linalg.norm(tangents, axis=1, keepdims=True) + 1e-12)
     rgb = (np.clip(rgb, 0.05, 1.0) * 255).astype(np.uint8)
-    # VTK polylines: [n, i0, i1, ..., n, j0, j1, ...]
+    #VTK polylines: [n, i0, i1, ..., n, j0, j1, ...]
     cells = np.concatenate([np.concatenate([[n], start + np.arange(n)])
                             for n, start in zip(counts, np.concatenate([[0], np.cumsum(counts)[:-1]]))])
     mesh = pv.PolyData(points, lines=cells)

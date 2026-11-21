@@ -4,9 +4,9 @@
 Designed, written, tested & validated by I, Hugo Piper.
 
 THIS IS THE PRIMARY SCRIPT FOR RUNNING THE ANT COLONY OPTIMISATION SOFTWARE.
-There is no real logic processed here; only argument parsing (CLI frontend), firing the shots to other scripts, and piping data.
-- View 'tracker.py' for a high level view of the ACO running.
-- View 'aco_ready.py' for the actual ACO logic.
+There is no real logic processed here; only argument parsing (CLI frontend), firing the shots to other scripts, and piping a bit of data.
+- View 'ant_colony_optimisation/run_aco' for a high level view of the ACO running.
+- View 'ant_colony_optimisation/ant_colony_optimisation.py' for the actual ACO logic.
 THIS IS A CLI BASED APPLICATION. USAGE BELOW.
 '''
 
@@ -15,12 +15,21 @@ import multiprocessing as mp
 import os
 import sys
 
+from data_loading_and_math import t1_constrained_tracking
+from data_loading_and_math import load_and_read_scan_metadata
+from data_loading_and_math.t1_constrained_tracking import AnatomyConfig
+from ant_colony_optimisation.ant_colony_optimisation import ACOConfig
+from multithreading_and_nvidia_gpu_support.processing_device import default_workers, gpu_info
+from visualisation.streamline_tracing_and_filtering import CleanupConfig
+from ant_colony_optimisation.run_aco import RunConfig, run_tracking
+
+
 #All the options that can be managed via the CLI as arguments.
-# The layout is: printed_banner: argument_flag, matching_field(view_colony.py), help_text. 
+# The layout is: printed_banner: argument_flag, matching_field(for the CLI viewer), help_text. 
 OPTIONS = [
     ("Seeds and colony", [
         ("streamlines", "max_seeds", "one streamline is traced from each seed"),
-        ("training-seeds", "n_training_seeds", "seeds the exploring ants start from"),
+        ("training-seeds", "n_training_seeds", "seeds the exploring ants start from. MAX = streamline count"),
         ("seed-fa", "seed_fa_threshold", "seeds only where FA is at least value"),
         ("generations", "n_generations", "learning rounds (0 = no learning)"),
         ("ants", "n_ants_per_seed", "ants that explore per training seed, per generation"),
@@ -45,7 +54,7 @@ OPTIONS = [
         ("pheromone-min", "pheromone_min", "pheromone never drops below value (maximum 1)"),
     ]),
 ]
-LINE = "=" * 92
+LINE = "=" * 92 #For CLI clarity purposes
 
 def format_values(vals):
     if isinstance(vals, int):
@@ -55,21 +64,12 @@ def format_values(vals):
 
 #Basic code to build a command line interface. Turns the OPTIONS dictionary into genuine flags via argparse.
 #I designed the arguments system this way to avoid a massive wall of repetitive code, doing it this way condenses everything into a for loop.
-
 def main():
-    from data_loading_and_math import t1_constrained_tracking
-    from data_loading_and_math import load_and_read_scan_metadata
-    from data_loading_and_math.t1_constrained_tracking import AnatomyConfig
-    from ant_colony_optimisation.ant_colony_optimisation import ACOConfig
-    from multithreading_and_nvidia_gpu_support.processing_device import default_workers, gpu_info
-    from visualisation.streamline_tracing_and_filtering import CleanupConfig
-    from ant_colony_optimisation.run_aco import RunConfig, run_tracking
-
-    # --- the command line: one flag per colony setting, defaults from ACOConfig
+    #Default settings can be found in ant_colony_optimisation/ant_colony_optimisation.py/ACOConfig
     defaults = ACOConfig()
-    p = argparse.ArgumentParser(description="Ant colony fibre tracking on an ACO-ready scan (made by DTI Prep).")
+    p = argparse.ArgumentParser(description="Ant Colony Optimisation nerve fibre tracking on an ACO-ready scan. By Hugo Piper")
     p.add_argument("scan", help="the *_aco_ready.nii.gz file")
-    for group, options in OPTIONS:
+    for group, options in OPTIONS:  #Creating the actual arugments via a FOR loop
         g = p.add_argument_group(group)
         for flag, name, text in options:
             default = getattr(defaults, name)
@@ -80,22 +80,21 @@ def main():
                    help="auto = the NVIDIA GPU if usable, else the CPU (default auto)")
     g.add_argument("--workers", type=int, default=default_workers(), metavar="N",
                    help=f"CPU processes when running on the CPU (default {default_workers()})")
-    g.add_argument("--no-viewer", action="store_true", help="don't open the 3D window at the end")
     args = p.parse_args()
 
-    aco = ACOConfig(**{name: getattr(args, name) for _, options in OPTIONS for _, name, _ in options})
+    aco = ACOConfig(**{name: getattr(args, name) for _, options in OPTIONS for _, name, _ in options}) #Gets default values from ACOConfig.
 
-    # --- the scan
+    #LOADS THE SCAN VIA data_loading_and_maths/load_and_read_scan_metadata.py
     try:
         ready = load_and_read_scan_metadata.load(args.scan)
     except (OSError, ValueError) as exc:
         sys.exit(f"Can't open {args.scan}: {exc}")
-    t1, cleanup = AnatomyConfig(), CleanupConfig()
-    use_t1 = t1_constrained_tracking.active(ready, t1)
-    walk = t1_constrained_tracking.white_matter_mask(ready, t1) if use_t1 else ready.tracking_mask    # where the ants may walk
+    t1, cleanup = AnatomyConfig(), CleanupConfig()  #If t1 scan is provided in scan metadata for increased accuracy.
+    use_t1 = t1_constrained_tracking.active(ready, t1)  #Active t1 constrained tracking if t1 scan exists.
+    walk = t1_constrained_tracking.white_matter_mask(ready, t1) if use_t1 else ready.tracking_mask #Where the ants may walk within the scan.
     n_seed_voxels = int((walk & (ready.fa >= aco.seed_fa_threshold)).sum())
 
-    # --- where it runs
+    #THE DEVICE WHICH RUNS THE COLONY (cpu single thread/cpu multithread/GPU batch processing)
     device, where = "cpu", f"CPU, {args.workers} process{'es' if args.workers > 1 else ''}"
     if args.device != "cpu":
         ok, desc = gpu_info()
@@ -104,19 +103,18 @@ def main():
         else:
             where += f" (no GPU: {desc})"
 
-    # --- what is about to run
+    #DISPLAYING THE PARAMETERS WHICH ARE GOING TO BE USED FOR THE COLONY INCLUDING MRI METADATA
+    #Basically just a bunch of sloppy 'print' lines. I should probably clean this up a bit better. 
     X, Y, Z = ready.shape
     vs = ready.voxel_size
     print(LINE)
     print(f"Scan      {os.path.basename(args.scan)}")
     print(f"          {X} x {Y} x {Z} voxels of {vs[0]:.2f} x {vs[1]:.2f} x {vs[2]:.2f} mm")
     if use_t1:
-        print(f"T1 maps   yes: the ants walk only in white matter ({int(walk.sum()):,} voxels), stop only where "
-              f"FA < {t1.fa_floor:g},")
+        print(f"T1 maps   yes: the ants walk only in white matter ({int(walk.sum()):,} voxels), stop only where FA < {t1.fa_floor:g},")
         print("          and both ends of a streamline must reach grey matter")
     else:
-        print(f"T1 maps   no: the ants walk in the tracking mask ({int(walk.sum()):,} voxels) and stop where "
-              f"FA < {aco.stop_fa_threshold:g}")
+        print(f"T1 maps   no: the ants walk in the tracking mask ({int(walk.sum()):,} voxels) and stop where  FA < {aco.stop_fa_threshold:g}")
     print(f"Seeds     {aco.max_seeds:,} streamlines from {n_seed_voxels:,} voxels with FA >= {aco.seed_fa_threshold:g}")
     print(f"Runs on   {where}")
     print()
@@ -130,18 +128,19 @@ def main():
             if name == "stop_fa_threshold" and use_t1:
                 note = f"  [not used: T1 maps, FA floor {t1.fa_floor:g}]"
             print(f"    --{flag:<16}{format_values(getattr(aco, name)):>9}   {text}{note}")
-    print(f"  Fixed (code only): smoothing {aco.smoothing_window} points | bundle filter "
-          f"{cleanup.cluster_threshold_mm:g} mm, bundles of >= {cleanup.min_cluster_size} | random seed {aco.random_seed}"
-          + (f" | T1 white matter >= {t1.wm_threshold:g}" if use_t1 else ""))
+    #DISPLAYS SMOOTHING PROPERTIES. Disabled for now cause it doesnt really add much.
+    #print(f"  Fixed (code only): smoothing {aco.smoothing_window} points | bundle filter "
+    #      f"{cleanup.cluster_threshold_mm:g} mm, bundles of >= {cleanup.min_cluster_size} | random seed {aco.random_seed}"
+    #     + (f" | T1 white matter >= {t1.wm_threshold:g}" if use_t1 else ""))
     print(LINE)
 
-    # --- run
+    #RUN THE COLONY AND REPORT STATS TO THE CLI.
     from tqdm import tqdm
     cfg = RunConfig(aco=aco, cleanup=cleanup, anatomy=t1, device=device, n_workers=args.workers)
     try:
-        res = run_tracking(ready, cfg, log=tqdm.write, progress=True)
+        res = run_tracking(ready, cfg, log=tqdm.write, progress=True) #Runs the ACO colony based on the inputted arguments and default parameters/
     except KeyboardInterrupt:
-        sys.exit("\nStopped.")
+        sys.exit("\nStopped.") #User hit ctrl+c
     s = res["stats"]
 
     print(LINE)
@@ -149,13 +148,13 @@ def main():
     print(f"Result    {s['n_streamlines_final']:,} streamlines{bundles}")
     if "length_mm_p10_p50_p90" in s:
         p10, p50, p90 = s["length_mm_p10_p50_p90"]
-        print(f"Lengths   {p10:.0f} / {p50:.0f} / {p90:.0f} mm (10th / 50th / 90th percentile)")
-    print(f"Time      colony {s['aco_seconds']:.0f} s, total {s['total_seconds']:.0f} s")
+        print(f"Lengths   {p10:.0f} / {p50:.0f} / {p90:.0f} mm (10th / 50th / 90th percentile)") #The average length of the fibers. Used for comparison testing with other algos (FACT/EUDX)
+    print(f"Time      colony {s['aco_seconds']:.0f} s, total {s['total_seconds']:.0f} s") #Run time
     print(LINE)
 
     if not args.no_viewer and res["streamlines_world"]:
         print("Opening the 3D view (close the window to finish)...")
-        from visualisation.live_viewer import show
+        from visualisation.live_viewer import show #Opens the 3D viewer with results.
         show(res["streamlines_world"], title=f"ACO Tracker: {os.path.basename(args.scan)}")
 
 
@@ -163,4 +162,4 @@ if __name__ == "__main__":
     mp.freeze_support() #Worker processes on Windows
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")
-    main()
+    main() #I added this for testing purposes, but running the code directly from a code editor doesnt actually work because it requires CLI arguments.

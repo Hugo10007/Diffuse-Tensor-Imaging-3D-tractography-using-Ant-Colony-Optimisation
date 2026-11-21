@@ -37,7 +37,7 @@ class ACOConfig:
     #DEFAULT SETTINGS OF CLI SETTINGS: Changing a lot of these dont really affect results a tonne, but I thought I'd include all of them for testing purposes.
     #Seeds and colony
     max_seeds: int = 10000           # [--streamlines] one streamline is traced from each seed: The more seeds the more streamlines (and computational cost)
-    n_training_seeds: int = 15000    # [--training-seeds] seeds the exploring ants start from (at most max_seeds)
+    n_training_seeds: int = 15000    # [--training-seeds] seeds the exploring ants start from
     seed_fa_threshold: float = 0.3   # [--seed-fa] seeds only where FA is at least this
     n_generations: int = 8           # [--generations] learning rounds (0 = no learning, also computationally expensive)
     n_ants_per_seed: int = 4         # [--ants] exploring ants per training seed, per generation
@@ -45,7 +45,7 @@ class ACOConfig:
     #How the ants move
     step_size_vox: float = 0.5       # [--step] step length, in voxels
     max_turn_deg: float = 30.0       # [--max-turn] sharpest turn per step, in degrees
-    n_candidate_directions: int = 8        # [--candidates] directions tried in the turning cone (+ fibre and deflected)
+    n_candidate_directions: int = 8  # [--candidates] directions tried in the turning cone (+ fibre and deflected)
     stop_fa_threshold: float = 0.2   # [--stop-fa] an ant stops where FA ahead is below this (not used with T1 maps)
     min_length_mm: float = 20.0      # [--min-length] shorter streamlines are dropped; ants under half this leave no pheromone
     max_length_mm: float = 250.0     # [--max-length] longest path (caps the number of steps)
@@ -66,7 +66,7 @@ class ACOConfig:
     smoothing_window: int = 5        #Points averaged
     random_seed: int = 42            #Same seed + same settings = same result.
 
-#CHUNKING because doing everything at once requires lots of RAM, which in 2026 is more expensive than gold.
+#CHUNKING because doing everything at once requires lots of RAM, which in 2026 is more expensive than gold. Also allows parallel processing!!
 TRAIN_CHUNK_SEEDS = 500        #seeds per work unit while the colony learns
 EXTRACT_CHUNK_SEEDS = 1000     #seeds per work unit while tracing the streamlines
 DIRECTION_LUT_RES = 256        #resolution of the direction: pheromone-bin table
