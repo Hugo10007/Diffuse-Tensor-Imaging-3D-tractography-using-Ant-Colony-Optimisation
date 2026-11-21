@@ -82,6 +82,8 @@ def main():
                    help="auto = the NVIDIA GPU if usable, else the CPU (default auto)")
     g.add_argument("--workers", type=int, default=default_workers(), metavar="N",
                    help=f"CPU processes when running on the CPU (default {default_workers()})")
+    g.add_argument("--no-viewer", action="store_true", help="don't open the 3D window at the end") #useless because I havent created a saving feature.
+
     args = p.parse_args()
 
     aco = ACOConfig(**{name: getattr(args, name) for _, options in OPTIONS for _, name, _ in options}) #Gets default values from ACOConfig.
